@@ -40,9 +40,10 @@ public class ConsoleUI {
                 case "4" -> adminOnly(() -> updateMember());
                 case "5" -> adminOnly(() -> renewMembership());
                 case "6" -> adminOnly(() -> cancelMembership());
-                case "7" -> adminOnly(() -> deleteMember());
-                case "8" -> viewSummary();
-                case "9" -> exportImportMenu();
+                case "7" -> adminOnly(() -> reactivateMembership());
+                case "8" -> adminOnly(() -> deleteMember());
+                case "9" -> viewSummary();
+                case "10" -> exportImportMenu();
                 case "0" -> running = false;
                 default  -> warn("Invalid choice. Please try again.");
             }
@@ -74,9 +75,10 @@ public class ConsoleUI {
         System.out.println("  [4] Update Member Details");
         System.out.println("  [5] Renew Membership");
         System.out.println("  [6] Cancel Membership");
-        System.out.println("  [7] Delete Member Record");
-        System.out.println("  [8] Membership Summary / Statistics");
-        System.out.println("  [9] Export / Import Data");
+        System.out.println("  [7] Reactivate Member");
+        System.out.println("  [8] Delete Member Record");
+        System.out.println("  [9] Membership Summary / Statistics");
+        System.out.println("  [10] Export / Import Data");
         System.out.println("  [0] Exit");
         System.out.println(DIVIDER);
     }
@@ -98,7 +100,7 @@ public class ConsoleUI {
         int months = chooseDuration();
 
         Member m = MembershipService.buildMember(id, name, email, phone,
-                                                  type, LocalDate.now(), months);
+                type, LocalDate.now(), months);
         service.addMember(m);
         success("Member registered successfully!");
         printMemberCard(m);
@@ -182,10 +184,10 @@ public class ConsoleUI {
         MembershipType type = changetype.equalsIgnoreCase("y") ? chooseMembershipType() : null;
 
         service.updateMember(id.trim(),
-            name.isBlank()  ? null : name,
-            email.isBlank() ? null : email,
-            phone.isBlank() ? null : phone,
-            type);
+                name.isBlank()  ? null : name,
+                email.isBlank() ? null : email,
+                phone.isBlank() ? null : phone,
+                type);
         success("Member updated successfully!");
         service.findById(id.trim()).ifPresent(this::printMemberCard);
     }
@@ -224,6 +226,35 @@ public class ConsoleUI {
             success("Membership cancelled.");
         } else {
             info("Cancellation aborted.");
+        }
+    }
+
+    // ─── REACTIVATE ──────────────────────────────────────────────────────────────
+
+    private void reactivateMembership() {
+        sectionHeader("REACTIVATE MEMBER");
+        String id = prompt("Enter Member ID");
+        Optional<Member> opt = service.findById(id.trim());
+        if (opt.isEmpty()) { warn("Member not found: " + id); return; }
+
+        Member m = opt.get();
+        if (m.getStatus() != MembershipStatus.CANCELLED) {
+            warn("This member is not cancelled. Use [5] Renew Membership instead.");
+            return;
+        }
+
+        printMemberCard(m);
+
+        MembershipType type = chooseMembershipType();
+        int months = chooseDuration();
+
+        String confirm = prompt("Reactivate membership for " + m.getName() + "? (yes/no)");
+        if (confirm.equalsIgnoreCase("yes")) {
+            service.reactivateMembership(id.trim(), months, type);
+            success("Membership reactivated for " + months + " month(s) from today.");
+            service.findById(id.trim()).ifPresent(this::printMemberCard);
+        } else {
+            info("Reactivation aborted.");
         }
     }
 
@@ -360,7 +391,7 @@ public class ConsoleUI {
     }
 
     private String promptValidated(String label, java.util.function.Predicate<String> validator,
-                                    String errorMsg) {
+                                   String errorMsg) {
         while (true) {
             String val = prompt(label);
             if (validator.test(val.trim())) return val.trim();
